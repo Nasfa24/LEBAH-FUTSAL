@@ -6,40 +6,46 @@
     <title>Live Score - Garda Futsal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Tambahan SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         tailwind.config = { theme: { extend: { colors: { neon: '#39ff14', dark: '#121212' } } } }
     </script>
 </head>
-<body class="bg-dark text-white min-h-screen p-4 font-sans">
+<body class="bg-dark text-white min-h-screen p-4 font-sans relative">
 
     <div class="max-w-md mx-auto">
-        <div class="text-center mb-6">
-            <h1 class="text-2xl font-black italic tracking-wider">GARDA<span class="text-neon">FUTSAL</span></h1>
-            <div id="roomStatus" class="inline-block bg-gray-800 px-4 py-1 mt-2 rounded-full font-mono text-sm text-neon font-bold border border-gray-700">
-                KODE: MEMUAT...
+        <!-- HEADER DENGAN TOMBOL BACK -->
+        <div class="flex justify-between items-start mb-6">
+            <button onclick="leaveRoom()" class="text-gray-400 hover:text-white bg-gray-800 px-3 py-1 rounded text-sm transition">&larr; Keluar</button>
+            <div class="text-right">
+                <h1 class="text-2xl font-black italic tracking-wider">GARDA<span class="text-neon">FUTSAL</span></h1>
+                <div id="roomStatus" class="inline-block bg-gray-800 px-3 py-1 mt-1 rounded text-xs text-neon font-bold border border-gray-700 tracking-widest shadow-inner">
+                    MEMUAT...
+                </div>
             </div>
         </div>
 
-        <div class="flex mb-4 border-b border-gray-700">
-            <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="flex-1 pb-2 font-bold text-neon border-b-2 border-neon transition">KLASEMEN</button>
-            <button onclick="switchTab('jadwal')" id="tab-jadwal" class="flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-300 transition">JADWAL</button>
+        <div class="flex mb-4 border-b border-gray-700 bg-gray-900 rounded-t-lg overflow-hidden">
+            <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="flex-1 py-3 font-bold text-black bg-neon transition border-b-2 border-neon">🏆 KLASEMEN</button>
+            <button onclick="switchTab('jadwal')" id="tab-jadwal" class="flex-1 py-3 font-bold text-gray-400 bg-gray-900 hover:bg-gray-800 transition border-b-2 border-transparent">📅 JADWAL</button>
         </div>
 
         <div id="content-leaderboard" class="space-y-6">
             <div>
-                <h2 class="text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">Top Scorer (Outfield)</h2>
-                <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+                <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="bg-gray-800 p-2 text-center text-xs font-bold text-gray-300 uppercase tracking-widest border-b border-gray-700">Top Scorer (Outfield)</div>
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-800 text-gray-400"><tr><th class="p-3 w-10 text-center">#</th><th class="p-3">Pemain</th><th class="p-3 text-center">Main</th><th class="p-3 text-center text-neon">Poin</th></tr></thead>
+                        <thead class="bg-black text-gray-500 text-xs"><tr><th class="p-3 w-10 text-center">#</th><th class="p-3">Pemain</th><th class="p-3 text-center">Main</th><th class="p-3 text-center text-neon">Poin</th></tr></thead>
                         <tbody id="outfieldLeaderboard" class="divide-y divide-gray-800"></tbody>
                     </table>
                 </div>
             </div>
             <div>
-                <h2 class="text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">Golden Glove (Kiper)</h2>
-                <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+                <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="bg-purple-900/30 p-2 text-center text-xs font-bold text-purple-300 uppercase tracking-widest border-b border-gray-700">Golden Glove (Kiper)</div>
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-800 text-gray-400"><tr><th class="p-3 w-10 text-center">#</th><th class="p-3">Kiper</th><th class="p-3 text-center">SG</th><th class="p-3 text-center text-yellow-400">Poin</th></tr></thead>
+                        <thead class="bg-black text-gray-500 text-xs"><tr><th class="p-3 w-10 text-center">#</th><th class="p-3">Kiper</th><th class="p-3 text-center">SG</th><th class="p-3 text-center text-yellow-400">Poin</th></tr></thead>
                         <tbody id="gkLeaderboard" class="divide-y divide-gray-800"></tbody>
                     </table>
                 </div>
@@ -51,30 +57,43 @@
                 <div class="text-center text-gray-500 py-10">Memuat Jadwal...</div>
             </div>
         </div>
-        
-        <div class="mt-8 text-center">
-            <a href="index.html" class="text-xs text-gray-600 underline">Keluar dari Room</a>
-        </div>
     </div>
 
     <script>
         const supabaseUrl = 'https://assaxxfdxtycdqkkkgpc.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzc2F4eGZkeHR5Y2Rxa2trZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjk4MDQsImV4cCI6MjA5MjYwNTgwNH0.5L3XfA3GOQqIzzNGOBZRTSINqGugDp1sj07BBYpsqEc';
-        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+        const db = supabase.createClient(supabaseUrl, supabaseKey);
+
+        const swalDark = Swal.mixin({
+            background: '#1f2937', color: '#fff',
+            confirmButtonColor: '#39ff14', cancelButtonColor: '#ef4444',
+            customClass: { confirmButton: 'text-black font-bold px-6 py-2 rounded', cancelButton: 'font-bold px-6 py-2 rounded' }
+        });
 
         let currentRoomId = null;
+
+        // FITUR TOMBOL KELUAR
+        function leaveRoom() {
+            swalDark.fire({
+                title: 'Keluar dari Room?',
+                text: "Anda akan diarahkan kembali ke Halaman Depan.",
+                icon: 'question', showCancelButton: true, confirmButtonText: 'Ya', cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) { window.location.href = 'index.html'; }
+            });
+        }
 
         function switchTab(tab) {
             document.getElementById('content-leaderboard').classList.add('hidden');
             document.getElementById('content-jadwal').classList.add('hidden');
-            document.getElementById('tab-leaderboard').classList.replace('text-neon', 'text-gray-500');
-            document.getElementById('tab-leaderboard').classList.replace('border-neon', 'border-transparent');
-            document.getElementById('tab-jadwal').classList.replace('text-neon', 'text-gray-500');
-            document.getElementById('tab-jadwal').classList.replace('border-neon', 'border-transparent');
+            
+            // Reset styles
+            document.getElementById('tab-leaderboard').className = 'flex-1 py-3 font-bold text-gray-400 bg-gray-900 hover:bg-gray-800 transition border-b-2 border-transparent';
+            document.getElementById('tab-jadwal').className = 'flex-1 py-3 font-bold text-gray-400 bg-gray-900 hover:bg-gray-800 transition border-b-2 border-transparent';
 
+            // Active styles
             document.getElementById(`content-${tab}`).classList.remove('hidden');
-            document.getElementById(`tab-${tab}`).classList.replace('text-gray-500', 'text-neon');
-            document.getElementById(`tab-${tab}`).classList.replace('border-transparent', 'border-neon');
+            document.getElementById(`tab-${tab}`).className = 'flex-1 py-3 font-bold text-black bg-neon transition border-b-2 border-neon';
         }
 
         async function initRoom() {
@@ -82,16 +101,14 @@
             const roomCode = urlParams.get('id') || localStorage.getItem('garda_room_code');
             if (!roomCode) { window.location.href = 'index.html'; return; }
 
-            document.getElementById('roomStatus').innerText = `KODE: ${roomCode}`;
+            document.getElementById('roomStatus').innerText = `ID: ${roomCode}`;
 
-            const { data: roomData } = await supabase.from('garda_rooms').select('id, status').eq('room_code', roomCode).single();
+            const { data: roomData } = await db.from('garda_rooms').select('id, status').eq('room_code', roomCode).single();
             if (roomData) {
                 currentRoomId = roomData.id;
-                fetchLeaderboard();
-                fetchJadwal();
+                fetchLeaderboard(); fetchJadwal();
                 
-                // BERLANGGANAN REALTIME UNTUK KLASEMEN & JADWAL
-                supabase.channel('public:room_updates')
+                db.channel('public:room_updates')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'garda_players', filter: `room_id=eq.${currentRoomId}` }, payload => fetchLeaderboard())
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'garda_matches', filter: `room_id=eq.${currentRoomId}` }, payload => fetchJadwal())
                     .subscribe();
@@ -99,7 +116,7 @@
         }
 
         async function fetchLeaderboard() {
-            const { data: players } = await supabase.from('garda_players').select('*').eq('room_id', currentRoomId).order('poin_utama', { ascending: false });
+            const { data: players } = await db.from('garda_players').select('*').eq('room_id', currentRoomId).order('poin_utama', { ascending: false });
             if (players) {
                 const outList = document.getElementById('outfieldLeaderboard');
                 const gkList = document.getElementById('gkLeaderboard');
@@ -108,46 +125,49 @@
 
                 players.forEach(p => {
                     if (p.position === 'outfield') {
-                        outList.innerHTML += `<tr class="hover:bg-gray-800 transition"><td class="p-3 text-center text-gray-500 font-mono">${rankOut++}</td><td class="p-3 font-bold uppercase">${p.name}</td><td class="p-3 text-center text-gray-400">${p.jumlah_main}</td><td class="p-3 text-center font-black text-neon text-lg">${p.poin_utama}</td></tr>`;
+                        let rankStyle = rankOut === 1 ? 'text-neon text-xl' : 'text-gray-500';
+                        outList.innerHTML += `<tr class="hover:bg-gray-800 transition border-b border-gray-800/50"><td class="p-3 text-center ${rankStyle} font-black">${rankOut++}</td><td class="p-3 font-bold uppercase tracking-wider">${p.name}</td><td class="p-3 text-center text-gray-400 font-mono">${p.jumlah_main}</td><td class="p-3 text-center font-black text-neon text-xl bg-green-900/10">${p.poin_utama}</td></tr>`;
                     } else if (p.position === 'gk') {
-                        gkList.innerHTML += `<tr class="hover:bg-gray-800 transition"><td class="p-3 text-center text-gray-500 font-mono">${rankGk++}</td><td class="p-3 font-bold uppercase text-purple-300">${p.name}</td><td class="p-3 text-center text-gray-400">${p.selisih_gol}</td><td class="p-3 text-center font-black text-yellow-400 text-lg">${p.poin_utama}</td></tr>`;
+                        let rankStyle = rankGk === 1 ? 'text-yellow-400 text-xl' : 'text-gray-500';
+                        gkList.innerHTML += `<tr class="hover:bg-gray-800 transition border-b border-gray-800/50"><td class="p-3 text-center ${rankStyle} font-black">${rankGk++}</td><td class="p-3 font-bold uppercase text-purple-300 tracking-wider">${p.name}</td><td class="p-3 text-center text-gray-400 font-mono">${p.selisih_gol}</td><td class="p-3 text-center font-black text-yellow-400 text-xl bg-yellow-900/10">${p.poin_utama}</td></tr>`;
                     }
                 });
             }
         }
 
         async function fetchJadwal() {
-            const { data: matches } = await supabase.from('garda_matches').select('*').eq('room_id', currentRoomId).order('match_number', { ascending: true });
-            
+            const { data: matches } = await db.from('garda_matches').select('*').eq('room_id', currentRoomId).order('match_number', { ascending: true });
             if (!matches || matches.length === 0) {
-                document.getElementById('jadwalList').innerHTML = '<div class="text-center text-gray-500 py-10">Jadwal belum digenerate oleh Panitia.</div>';
+                document.getElementById('jadwalList').innerHTML = '<div class="text-center text-gray-500 py-10 border border-dashed border-gray-700 rounded-lg">Jadwal belum dikunci oleh Panitia.</div>';
                 return;
             }
 
             let html = '';
             matches.forEach(m => {
                 let statusBadge = '';
-                let scoreText = `<span class="text-3xl font-black text-gray-700">VS</span>`;
+                let scoreText = `<span class="text-3xl font-black text-gray-700 italic">VS</span>`;
+                let borderGlow = 'border-gray-800';
 
                 if (m.status === 'completed') {
-                    statusBadge = `<span class="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">SELESAI</span>`;
-                    scoreText = `<span class="text-3xl font-black text-white">${m.score_a} - ${m.score_b}</span>`;
+                    statusBadge = `<span class="bg-gray-800 text-gray-400 text-xs px-2 py-1 rounded font-bold">SELESAI</span>`;
+                    scoreText = `<span class="text-3xl font-black text-white tracking-widest">${m.score_a} - ${m.score_b}</span>`;
                 } else if (m.status === 'active') {
-                    statusBadge = `<span class="bg-neon text-black font-bold text-xs px-2 py-1 rounded animate-pulse">BERMAIN</span>`;
+                    statusBadge = `<span class="bg-neon text-black font-bold text-xs px-2 py-1 rounded animate-pulse shadow-[0_0_10px_rgba(57,255,20,0.5)]">BERMAIN</span>`;
+                    borderGlow = 'border-neon shadow-[0_0_15px_rgba(57,255,20,0.1)]';
                 } else {
-                    statusBadge = `<span class="bg-blue-900 text-blue-200 text-xs px-2 py-1 rounded">MENUNGGU</span>`;
+                    statusBadge = `<span class="bg-blue-900 text-blue-200 text-xs px-2 py-1 rounded font-bold">MENUNGGU</span>`;
                 }
 
                 html += `
-                <div class="bg-gray-900 border ${m.status === 'active' ? 'border-neon' : 'border-gray-800'} rounded-lg p-4">
-                    <div class="flex justify-between items-center mb-3 border-b border-gray-800 pb-2">
-                        <span class="text-gray-400 font-mono text-sm">GAME ${m.match_number}</span>
+                <div class="bg-gray-900 border ${borderGlow} rounded-lg p-5 mb-4 relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
+                        <span class="text-blue-400 font-mono text-sm font-bold tracking-widest">GAME ${m.match_number}</span>
                         ${statusBadge}
                     </div>
                     <div class="flex justify-between items-center text-center">
-                        <div class="w-2/5"><div class="font-bold text-lg mb-1">TIM A</div></div>
+                        <div class="w-2/5"><div class="font-bold text-lg text-gray-300">TIM A</div></div>
                         <div class="w-1/5">${scoreText}</div>
-                        <div class="w-2/5"><div class="font-bold text-lg mb-1">TIM B</div></div>
+                        <div class="w-2/5"><div class="font-bold text-lg text-gray-300">TIM B</div></div>
                     </div>
                 </div>`;
             });

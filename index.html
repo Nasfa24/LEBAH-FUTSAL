@@ -3,80 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Garda Futsal - Sistem Americano</title>
+    <title>Admin - Garda Futsal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Tambahan SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         tailwind.config = { theme: { extend: { colors: { neon: '#39ff14', dark: '#121212' } } } }
     </script>
 </head>
-<body class="bg-dark text-white min-h-screen flex items-center justify-center p-4">
+<body class="bg-dark text-white min-h-screen p-4 md:p-8 font-sans">
 
-    <div class="max-w-md w-full bg-gray-900 rounded-xl shadow-2xl p-8 border border-gray-800">
-        <h1 class="text-3xl font-black text-center mb-2 italic tracking-wider">GARDA<span class="text-neon">FUTSAL</span></h1>
-        <p class="text-gray-400 text-center mb-8 text-sm">Sistem Klasemen Americano</p>
-
-        <div class="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700">
-            <h2 class="text-lg font-bold mb-3 text-neon">PEMAIN</h2>
-            <input type="text" id="roomCodeInput" placeholder="Masukkan Kode Room (Msl: GARDA01)" 
-                   class="w-full p-3 rounded bg-gray-900 border border-gray-700 text-white focus:border-neon focus:outline-none mb-3 uppercase">
-            <button onclick="joinRoom()" class="w-full bg-neon text-black font-bold py-3 rounded hover:bg-green-400 transition">
-                MASUK KE LIVE SCORE
-            </button>
+    <div class="max-w-4xl mx-auto">
+        <!-- HEADER DENGAN TOMBOL BACK -->
+        <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-6">
+            <div class="flex items-center gap-4">
+                <button onclick="goBack()" class="text-gray-400 hover:text-white transition bg-gray-800 px-3 py-1 rounded text-sm">&larr; Kembali</button>
+                <h1 class="text-2xl font-black italic hidden md:block">PANITIA <span class="text-blue-500">GARDA</span></h1>
+            </div>
+            <div id="roomStatus" class="bg-gray-800 px-4 py-2 rounded font-mono text-neon font-bold text-sm">KODE: MEMUAT...</div>
         </div>
 
-        <div class="p-4 bg-gray-800 rounded-lg border border-gray-700">
-            <h2 class="text-lg font-bold mb-3 text-blue-400">ADMIN / PANITIA</h2>
-            <input type="number" id="durationInput" placeholder="Durasi Sewa (Menit)" value="120"
-                   class="w-full p-3 rounded bg-gray-900 border border-gray-700 text-white focus:border-blue-400 focus:outline-none mb-3">
-            <button onclick="createRoom()" class="w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-500 transition">
-                BUAT ROOM BARU
-            </button>
+        <div id="setupPhase" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gray-900 border border-gray-800 p-5 rounded-xl">
+                <h2 class="text-lg font-bold mb-4 border-b border-gray-700 pb-2 text-blue-400">1. Registrasi Pemain</h2>
+                <div class="flex flex-col gap-3">
+                    <input type="text" id="playerName" placeholder="Nama Pemain" class="p-2 bg-gray-800 border border-gray-700 rounded text-white focus:border-blue-400 focus:outline-none uppercase font-bold text-center">
+                    <select id="playerPosition" class="p-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none text-center">
+                        <option value="outfield">Outfield (Pemain)</option>
+                        <option value="gk">GK (Kiper)</option>
+                    </select>
+                    <button onclick="addPlayer()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition shadow-[0_0_10px_rgba(37,99,235,0.3)]">+ Tambah</button>
+                </div>
+            </div>
+
+            <div class="bg-gray-900 border border-gray-800 p-5 rounded-xl md:col-span-2 flex flex-col">
+                <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
+                    <h2 class="text-lg font-bold text-neon">2. Roster Hadir (Check-In)</h2>
+                    <span id="playerCount" class="text-sm font-bold bg-gray-800 px-2 py-1 rounded text-gray-300">Total: 0</span>
+                </div>
+                <div id="playerList" class="flex-grow overflow-y-auto max-h-60 space-y-2 mb-4 pr-2"></div>
+                <button onclick="generateSchedule()" class="w-full bg-neon text-black font-black py-4 rounded hover:bg-green-400 transition text-lg mt-auto shadow-[0_0_15px_rgba(57,255,20,0.2)]">
+                    MULAI ACAK JADWAL OTOMATIS
+                </button>
+            </div>
+        </div>
+
+        <div id="playingPhase" class="hidden">
+            <div class="bg-gray-900 border border-gray-800 p-6 rounded-xl text-center shadow-2xl">
+                <h2 class="text-xl font-black text-neon mb-6 uppercase tracking-widest border-b border-gray-800 pb-4">Live Match Controller</h2>
+                <div id="activeMatchDisplay" class="py-10 text-gray-400">Memuat pertandingan aktif...</div>
+            </div>
         </div>
     </div>
 
     <script>
-        // PERBAIKAN: Mengubah nama variabel menjadi 'db' agar tidak bentrok
         const supabaseUrl = 'https://assaxxfdxtycdqkkkgpc.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzc2F4eGZkeHR5Y2Rxa2trZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjk4MDQsImV4cCI6MjA5MjYwNTgwNH0.5L3XfA3GOQqIzzNGOBZRTSINqGugDp1sj07BBYpsqEc';
         const db = supabase.createClient(supabaseUrl, supabaseKey);
 
-        async function joinRoom() {
-            const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
-            if (!code) return alert("Masukkan kode room!");
+        const swalDark = Swal.mixin({
+            background: '#1f2937', color: '#fff',
+            confirmButtonColor: '#39ff14', cancelButtonColor: '#ef4444',
+            customClass: { confirmButton: 'text-black font-bold px-6 py-2 rounded', cancelButton: 'font-bold px-6 py-2 rounded' }
+        });
 
-            // PERBAIKAN: Menggunakan 'db.from'
-            const { data, error } = await db.from('garda_rooms').select('id').eq('room_code', code).single();
+        let currentRoomId = null;
+        let currentRoomDuration = 120; 
 
-            if (error || !data) {
-                alert("Room tidak ditemukan atau sudah ditutup!");
-            } else {
-                localStorage.setItem('garda_room_code', code);
-                window.location.href = `room.html?id=${code}`;
+        // FITUR TOMBOL KEMBALI (KONFIRMASI)
+        function goBack() {
+            swalDark.fire({
+                title: 'Tinggalkan Panel?',
+                text: "Sesi tidak akan terhapus, Anda bisa masuk lagi menggunakan Kode Room.",
+                icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, Keluar', cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) { window.location.href = 'index.html'; }
+            });
+        }
+
+        async function initAdmin() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let roomCode = urlParams.get('id') || localStorage.getItem('garda_admin_room');
+            if (!roomCode) { window.location.href = 'index.html'; return; }
+
+            document.getElementById('roomStatus').innerText = `KODE: ${roomCode}`;
+
+            const { data } = await db.from('garda_rooms').select('*').eq('room_code', roomCode).single();
+            if (data) {
+                currentRoomId = data.id;
+                currentRoomDuration = data.total_duration;
+                if(data.status === 'playing') {
+                    document.getElementById('setupPhase').classList.add('hidden');
+                    document.getElementById('playingPhase').classList.remove('hidden');
+                    loadActiveMatch();
+                } else { fetchPlayers(); }
             }
         }
 
-        async function createRoom() {
-            const duration = document.getElementById('durationInput').value;
-            if (!duration || duration < 30) return alert("Durasi minimal 30 menit!");
+        async function addPlayer() {
+            const name = document.getElementById('playerName').value.trim();
+            const position = document.getElementById('playerPosition').value;
+            if (!name) return swalDark.fire('Kosong!', 'Nama pemain wajib diisi.', 'warning');
+            
+            await db.from('garda_players').insert([{ room_id: currentRoomId, name: name, position: position }]);
+            document.getElementById('playerName').value = '';
+            
+            // Tampilkan Toast Notifikasi Kecil agar tidak mengganggu aliran registrasi
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Ditambahkan', showConfirmButton: false, timer: 1000, background: '#1f2937', color: '#39ff14' });
+            fetchPlayers();
+        }
 
-            const randomCode = 'GARDA' + Math.floor(100 + Math.random() * 900);
-
-            // PERBAIKAN: Menggunakan 'db.from'
-            const { data, error } = await db.from('garda_rooms')
-                .insert([{ room_code: randomCode, total_duration: parseInt(duration), status: 'waiting' }])
-                .select()
-                .single();
-
-            if (error) {
-                console.error(error);
-                alert("Gagal membuat room.");
-            } else {
-                alert(`Room berhasil dibuat! KODE: ${randomCode}`);
-                localStorage.setItem('garda_admin_room', randomCode);
-                window.location.href = `admin.html?id=${randomCode}`;
+        async function fetchPlayers() {
+            const { data } = await db.from('garda_players').select('*').eq('room_id', currentRoomId).order('created_at', { ascending: true });
+            if (data) {
+                const list = document.getElementById('playerList');
+                list.innerHTML = '';
+                document.getElementById('playerCount').innerText = `Total: ${data.length}`;
+                data.forEach(p => {
+                    const color = p.position === 'gk' ? 'bg-purple-900 border-purple-700' : 'bg-gray-800 border-gray-700';
+                    const label = p.position === 'gk' ? '<span class="text-purple-300">GK</span>' : '<span class="text-gray-400">OUT</span>';
+                    list.innerHTML += `<div class="flex justify-between items-center p-3 rounded border ${color}"><span class="font-bold uppercase tracking-wider">${p.name}</span><span class="text-xs font-mono px-2 py-1 bg-black rounded shadow-inner">${label}</span></div>`;
+                });
             }
         }
+
+        // KONFIRMASI PEMBUATAN JADWAL
+        async function generateSchedule() {
+            const { data: players } = await db.from('garda_players').select('*').eq('room_id', currentRoomId);
+            
+            if (players.length < 10) {
+                return swalDark.fire('Pemain Kurang!', 'Dibutuhkan minimal 10 orang (8 Outfield + 2 GK) untuk menjalankan rotasi.', 'error');
+            }
+
+            swalDark.fire({
+                title: 'Eksekusi Jadwal?',
+                text: "Algoritma akan mengacak tim dan mengunci jadwal. Pastikan semua pemain sudah hadir!",
+                icon: 'warning', showCancelButton: true, confirmButtonText: 'Kunci & Acak!', cancelButtonText: 'Cek Lagi'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    swalDark.fire({ title: 'Mengkalkulasi Rotasi...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+
+                    const totalMatches = Math.floor((currentRoomDuration - 10) / 10);
+                    let localPlayers = JSON.parse(JSON.stringify(players));
+                    let matchesToInsert = []; let rosterToInsert = [];
+
+                    for (let i = 1; i <= totalMatches; i++) {
+                        let outfield = localPlayers.filter(p => p.position === 'outfield').sort((a, b) => a.jumlah_main - b.jumlah_main);
+                        let gk = localPlayers.filter(p => p.position === 'gk').sort((a, b) => a.jumlah_main - b.jumlah_main);
+
+                        let selOut = outfield.slice(0, 8).sort(() => Math.random() - 0.5);
+                        let selGK = gk.slice(0, 2).sort(() => Math.random() - 0.5);
+
+                        const matchId = crypto.randomUUID(); 
+                        matchesToInsert.push({ id: matchId, room_id: currentRoomId, match_number: i, status: i === 1 ? 'active' : 'pending' });
+
+                        for (let j=0; j<4; j++) rosterToInsert.push({ match_id: matchId, player_id: selOut[j].id, team_side: 'A' });
+                        rosterToInsert.push({ match_id: matchId, player_id: selGK[0].id, team_side: 'A' });
+
+                        for (let j=4; j<8; j++) rosterToInsert.push({ match_id: matchId, player_id: selOut[j].id, team_side: 'B' });
+                        rosterToInsert.push({ match_id: matchId, player_id: selGK[1].id, team_side: 'B' });
+
+                        selOut.forEach(p => p.jumlah_main += 1); selGK.forEach(p => p.jumlah_main += 1);
+                    }
+
+                    await db.from('garda_matches').delete().eq('room_id', currentRoomId);
+                    await db.from('garda_matches').insert(matchesToInsert);
+                    await db.from('garda_match_roster').insert(rosterToInsert);
+                    await db.from('garda_rooms').update({ status: 'playing' }).eq('id', currentRoomId);
+                    
+                    window.location.reload(); 
+                }
+            });
+        }
+
+        async function loadActiveMatch() {
+            const { data: match } = await db.from('garda_matches').select('*').eq('room_id', currentRoomId).eq('status', 'active').single();
+            const display = document.getElementById('activeMatchDisplay');
+
+            if (!match) {
+                display.innerHTML = '<h3 class="text-3xl font-black text-neon animate-bounce">SEMUA PERTANDINGAN SELESAI!</h3>';
+                return;
+            }
+
+            display.innerHTML = `
+                <div class="mb-4 text-blue-400 font-mono tracking-widest bg-blue-900/30 inline-block px-4 py-1 rounded-full border border-blue-800">GAME ${match.match_number}</div>
+                <div class="flex items-center justify-center gap-6 md:gap-12 mb-10 mt-4">
+                    <div class="flex flex-col items-center">
+                        <span class="text-2xl font-black mb-3 text-white tracking-widest border-b-2 border-gray-700 pb-1">TIM A</span>
+                        <input type="number" id="scoreA" value="0" min="0" class="w-24 h-28 md:w-32 md:h-32 text-center text-6xl font-black bg-black border-4 border-gray-700 rounded-2xl focus:border-neon focus:outline-none focus:ring-4 focus:ring-green-900 transition text-neon shadow-inner">
+                    </div>
+                    <div class="text-3xl font-black text-gray-600 italic">VS</div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-2xl font-black mb-3 text-white tracking-widest border-b-2 border-gray-700 pb-1">TIM B</span>
+                        <input type="number" id="scoreB" value="0" min="0" class="w-24 h-28 md:w-32 md:h-32 text-center text-6xl font-black bg-black border-4 border-gray-700 rounded-2xl focus:border-neon focus:outline-none focus:ring-4 focus:ring-green-900 transition text-white shadow-inner">
+                    </div>
+                </div>
+                <button onclick="submitScore('${match.id}', ${match.match_number})" class="w-full md:w-2/3 mx-auto block bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl transition text-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] border border-blue-400">
+                    Selesai & Update Klasemen
+                </button>
+            `;
+        }
+
+        // KONFIRMASI PENYIMPANAN SKOR
+        function submitScore(matchId, matchNumber) {
+            const scoreA = parseInt(document.getElementById('scoreA').value);
+            const scoreB = parseInt(document.getElementById('scoreB').value);
+
+            swalDark.fire({
+                title: 'Kunci Skor?',
+                html: `Hasil Game ${matchNumber}:<br><b class="text-3xl text-neon mt-2 block">A: ${scoreA} - B: ${scoreB}</b><br>Poin pemain akan langsung dihitung.`,
+                icon: 'warning', showCancelButton: true, confirmButtonText: 'Kunci & Lanjut!', cancelButtonText: 'Cek Lagi'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    swalDark.fire({ title: 'Menyimpan Poin...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+
+                    const { data: rosters } = await db.from('garda_match_roster').select('player_id, team_side, garda_players(position, poin_utama, selisih_gol, jumlah_main)').eq('match_id', matchId);
+                    let updates = [];
+
+                    for (let r of rosters) {
+                        let pId = r.player_id; let side = r.team_side; let pData = r.garda_players;
+                        let myTeamScore = side === 'A' ? scoreA : scoreB;
+                        let oppTeamScore = side === 'A' ? scoreB : scoreA;
+                        let newPoin = pData.poin_utama; let newSG = pData.selisih_gol; let newMain = pData.jumlah_main + 1;
+
+                        if (pData.position === 'outfield') {
+                            newPoin += myTeamScore; 
+                            if (oppTeamScore === 0) newPoin += 2; 
+                        } else if (pData.position === 'gk') {
+                            let diff = myTeamScore - oppTeamScore;
+                            let csBonus = oppTeamScore === 0 ? 3 : 0;
+                            newPoin += (2 + diff + csBonus); newSG += diff;
+                        }
+                        updates.push({ id: pId, poin_utama: newPoin, selisih_gol: newSG, jumlah_main: newMain });
+                    }
+
+                    for (let u of updates) { await db.from('garda_players').update({ poin_utama: u.poin_utama, selisih_gol: u.selisih_gol, jumlah_main: u.jumlah_main }).eq('id', u.id); }
+                    await db.from('garda_matches').update({ score_a: scoreA, score_b: scoreB, status: 'completed' }).eq('id', matchId);
+
+                    const { data: next } = await db.from('garda_matches').select('id').eq('room_id', currentRoomId).eq('status', 'pending').order('match_number', { ascending: true }).limit(1);
+                    
+                    if (next && next.length > 0) { await db.from('garda_matches').update({ status: 'active' }).eq('id', next[0].id); } 
+                    else { await db.from('garda_rooms').update({ status: 'finished' }).eq('id', currentRoomId); }
+
+                    Swal.close();
+                    loadActiveMatch(); 
+                }
+            });
+        }
+
+        initAdmin();
     </script>
 </body>
 </html>
