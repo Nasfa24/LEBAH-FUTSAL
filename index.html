@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garda Futsal - Sistem Americano</title>
+    <!-- Tailwind CSS untuk styling cepat & sporty -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neon: '#39ff14', // Hijau Neon ala Futsal
+                        dark: '#121212'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-dark text-white min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-md w-full bg-gray-900 rounded-xl shadow-2xl p-8 border border-gray-800">
+        <h1 class="text-3xl font-black text-center mb-2 italic tracking-wider">GARDA<span class="text-neon">FUTSAL</span></h1>
+        <p class="text-gray-400 text-center mb-8 text-sm">Sistem Klasemen Americano</p>
+
+        <!-- Form Pemain: Masuk Room -->
+        <div class="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700">
+            <h2 class="text-lg font-bold mb-3 text-neon">PEMAIN</h2>
+            <input type="text" id="roomCodeInput" placeholder="Masukkan Kode Room (Msl: GARDA01)" 
+                   class="w-full p-3 rounded bg-gray-900 border border-gray-700 text-white focus:border-neon focus:outline-none mb-3 uppercase">
+            <button onclick="joinRoom()" class="w-full bg-neon text-black font-bold py-3 rounded hover:bg-green-400 transition">
+                MASUK KE LIVE SCORE
+            </button>
+        </div>
+
+        <!-- Form Admin: Buat Room Baru -->
+        <div class="p-4 bg-gray-800 rounded-lg border border-gray-700">
+            <h2 class="text-lg font-bold mb-3 text-blue-400">ADMIN / PANITIA</h2>
+            <input type="number" id="durationInput" placeholder="Durasi Sewa (Menit)" value="120"
+                   class="w-full p-3 rounded bg-gray-900 border border-gray-700 text-white focus:border-blue-400 focus:outline-none mb-3">
+            <button onclick="createRoom()" class="w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-500 transition">
+                BUAT ROOM BARU
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // INISIALISASI SUPABASE (ARUS)
+        const supabaseUrl = 'https://assaxxfdxtycdqkkkgpc.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzc2F4eGZkeHR5Y2Rxa2trZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjk4MDQsImV4cCI6MjA5MjYwNTgwNH0.5L3XfA3GOQqIzzNGOBZRTSINqGugDp1sj07BBYpsqEc';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // FUNGSI PEMAIN: Masuk Room
+        async function joinRoom() {
+            const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+            if (!code) return alert("Masukkan kode room!");
+
+            // Cek apakah room ada di database
+            const { data, error } = await supabase
+                .from('garda_rooms')
+                .select('id')
+                .eq('room_code', code)
+                .single();
+
+            if (error || !data) {
+                alert("Room tidak ditemukan atau sudah ditutup!");
+            } else {
+                // Simpan ke local storage agar anti-refresh bug
+                localStorage.setItem('garda_room_code', code);
+                // Redirect ke halaman live score dengan parameter URL
+                window.location.href = `room.html?id=${code}`;
+            }
+        }
+
+        // FUNGSI ADMIN: Buat Room
+        async function createRoom() {
+            const duration = document.getElementById('durationInput').value;
+            if (!duration || duration < 30) return alert("Durasi minimal 30 menit!");
+
+            // Generate Kode Acak Sederhana (GARDA + 3 Angka Acak)
+            const randomCode = 'GARDA' + Math.floor(100 + Math.random() * 900);
+
+            const { data, error } = await supabase
+                .from('garda_rooms')
+                .insert([{ room_code: randomCode, total_duration: parseInt(duration), status: 'waiting' }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error(error);
+                alert("Gagal membuat room.");
+            } else {
+                alert(`Room berhasil dibuat! KODE: ${randomCode}`);
+                localStorage.setItem('garda_admin_room', randomCode);
+                window.location.href = `admin.html?id=${randomCode}`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Score - Garda Futsal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { neon: '#39ff14', dark: '#121212' } } }
+        }
+    </script>
+</head>
+<body class="bg-dark text-white min-h-screen p-4 font-sans">
+
+    <div class="max-w-md mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-black italic tracking-wider">GARDA<span class="text-neon">FUTSAL</span></h1>
+            <div id="roomStatus" class="inline-block bg-gray-800 px-4 py-1 mt-2 rounded-full font-mono text-sm text-neon font-bold border border-gray-700">
+                KODE: MEMUAT...
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="flex mb-4 border-b border-gray-700">
+            <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="flex-1 pb-2 font-bold text-neon border-b-2 border-neon transition">KLASEMEN</button>
+            <button onclick="switchTab('jadwal')" id="tab-jadwal" class="flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-300 transition">JADWAL</button>
+        </div>
+
+        <!-- KONTEN: LEADERBOARD -->
+        <div id="content-leaderboard" class="space-y-6">
+            <!-- Klasemen Outfield -->
+            <div>
+                <h2 class="text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">Top Scorer (Outfield)</h2>
+                <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-800 text-gray-400">
+                            <tr>
+                                <th class="p-3 w-10 text-center">#</th>
+                                <th class="p-3">Pemain</th>
+                                <th class="p-3 text-center">Main</th>
+                                <th class="p-3 text-center text-neon">Poin</th>
+                            </tr>
+                        </thead>
+                        <tbody id="outfieldLeaderboard" class="divide-y divide-gray-800">
+                            <!-- Diisi via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Klasemen GK -->
+            <div>
+                <h2 class="text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">Golden Glove (Kiper)</h2>
+                <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-800 text-gray-400">
+                            <tr>
+                                <th class="p-3 w-10 text-center">#</th>
+                                <th class="p-3">Kiper</th>
+                                <th class="p-3 text-center">SG</th>
+                                <th class="p-3 text-center text-yellow-400">Poin</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gkLeaderboard" class="divide-y divide-gray-800">
+                            <!-- Diisi via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- KONTEN: JADWAL -->
+        <div id="content-jadwal" class="hidden space-y-4">
+            <!-- Diisi via JS -->
+            <div class="text-center text-gray-500 py-10">Jadwal belum digenerate oleh Panitia.</div>
+        </div>
+        
+        <div class="mt-8 text-center">
+            <a href="index.html" class="text-xs text-gray-600 underline">Keluar dari Room</a>
+        </div>
+    </div>
+
+    <script>
+        // INISIALISASI SUPABASE (ARUS)
+        const supabaseUrl = 'https://assaxxfdxtycdqkkkgpc.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzc2F4eGZkeHR5Y2Rxa2trZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjk4MDQsImV4cCI6MjA5MjYwNTgwNH0.5L3XfA3GOQqIzzNGOBZRTSINqGugDp1sj07BBYpsqEc';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentRoomId = null;
+
+        // FUNGSI GANTI TAB
+        function switchTab(tab) {
+            document.getElementById('content-leaderboard').classList.add('hidden');
+            document.getElementById('content-jadwal').classList.add('hidden');
+            document.getElementById('tab-leaderboard').classList.replace('text-neon', 'text-gray-500');
+            document.getElementById('tab-leaderboard').classList.replace('border-neon', 'border-transparent');
+            document.getElementById('tab-jadwal').classList.replace('text-neon', 'text-gray-500');
+            document.getElementById('tab-jadwal').classList.replace('border-neon', 'border-transparent');
+
+            document.getElementById(`content-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.replace('text-gray-500', 'text-neon');
+            document.getElementById(`tab-${tab}`).classList.replace('border-transparent', 'border-neon');
+        }
+
+        // AMBIL DATA AWAL
+        async function initRoom() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomCode = urlParams.get('id') || localStorage.getItem('garda_room_code');
+
+            if (!roomCode) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            document.getElementById('roomStatus').innerText = `KODE: ${roomCode}`;
+
+            // Ambil ID Room
+            const { data: roomData } = await supabase.from('garda_rooms').select('id, status').eq('room_code', roomCode).single();
+            
+            if (roomData) {
+                currentRoomId = roomData.id;
+                fetchLeaderboard();
+                
+                // BERLANGGANAN REALTIME UPDATE (Ini yang membuat angka bergerak otomatis tanpa refresh)
+                supabase.channel('public:garda_players')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'garda_players', filter: `room_id=eq.${currentRoomId}` }, payload => {
+                        fetchLeaderboard();
+                    })
+                    .subscribe();
+            } else {
+                alert("Room tidak ditemukan!");
+                window.location.href = 'index.html';
+            }
+        }
+
+        // TARIK DATA KLASEMEN
+        async function fetchLeaderboard() {
+            const { data: players } = await supabase.from('garda_players')
+                .select('*')
+                .eq('room_id', currentRoomId)
+                .order('poin_utama', { ascending: false });
+
+            if (players) {
+                const outfieldList = document.getElementById('outfieldLeaderboard');
+                const gkList = document.getElementById('gkLeaderboard');
+                outfieldList.innerHTML = '';
+                gkList.innerHTML = '';
+
+                let rankOut = 1, rankGk = 1;
+
+                players.forEach(p => {
+                    if (p.position === 'outfield') {
+                        outfieldList.innerHTML += `
+                            <tr class="hover:bg-gray-800 transition">
+                                <td class="p-3 text-center text-gray-500 font-mono">${rankOut++}</td>
+                                <td class="p-3 font-bold uppercase">${p.name}</td>
+                                <td class="p-3 text-center text-gray-400">${p.jumlah_main}</td>
+                                <td class="p-3 text-center font-black text-neon text-lg">${p.poin_utama}</td>
+                            </tr>
+                        `;
+                    } else if (p.position === 'gk') {
+                        // Logic GK: Modal (2 * main) + Selisih Gol + Bonus
+                        gkList.innerHTML += `
+                            <tr class="hover:bg-gray-800 transition">
+                                <td class="p-3 text-center text-gray-500 font-mono">${rankGk++}</td>
+                                <td class="p-3 font-bold uppercase text-purple-300">${p.name}</td>
+                                <td class="p-3 text-center text-gray-400">${p.selisih_gol}</td>
+                                <td class="p-3 text-center font-black text-yellow-400 text-lg">${p.poin_utama}</td>
+                            </tr>
+                        `;
+                    }
+                });
+            }
+        }
+
+        // Jalankan saat halaman siap
+        initRoom();
+    </script>
+</body>
+</html>
