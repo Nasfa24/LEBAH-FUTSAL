@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Turnamen - Garda Futsal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { neon: '#39ff14', dark: '#121212', gold: '#FFD700', goldDark: '#B8860B' } } } }
+    </script>
+</head>
+<body class="bg-dark text-white min-h-screen p-4 md:p-8 font-sans">
+
+    <div class="max-w-5xl mx-auto">
+        <!-- HEADER -->
+        <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-6">
+            <div class="flex items-center gap-4">
+                <button onclick="goBack()" class="text-gray-400 hover:text-white transition bg-gray-800 px-3 py-1 rounded text-sm shadow-md">&larr; Beranda</button>
+                <h1 class="text-2xl font-black italic hidden md:block text-white">PANITIA <span class="text-gold">TURNAMEN</span></h1>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="copyTourneyLink()" class="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded text-gold transition border border-yellow-900 font-bold flex items-center gap-2">
+                    🔗 Link Penonton
+                </button>
+                <div id="roomStatus" class="bg-gradient-to-r from-yellow-700 to-yellow-600 px-4 py-2 rounded font-mono text-black font-black text-sm shadow-lg">KODE: MEMUAT...</div>
+            </div>
+        </div>
+
+        <!-- FASE SETUP (REGISTRASI SEKOLAH) -->
+        <div id="setupPhase" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Form Input -->
+            <div class="bg-gray-900 border border-yellow-900/50 p-6 rounded-xl shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 bg-yellow-600 text-black text-[10px] font-black px-3 py-1 rounded-bl-lg">ROSTER SEKOLAH</div>
+                <h2 class="text-lg font-bold mb-4 border-b border-gray-800 pb-2 text-gold">1. Registrasi Kontingen</h2>
+                
+                <input type="text" id="schoolName" placeholder="NAMA SEKOLAH / ALMAMATER" class="w-full p-3 mb-4 bg-black border border-yellow-700 rounded text-gold focus:border-yellow-400 focus:outline-none uppercase font-black text-center text-lg shadow-inner placeholder-gray-700">
+                
+                <div class="space-y-3 mb-6">
+                    <div class="flex gap-2">
+                        <span class="bg-purple-900 text-purple-200 text-xs font-bold px-2 py-3 rounded border border-purple-700 flex items-center">GK</span>
+                        <input type="text" id="gkName" placeholder="Nama Kiper Utama" class="flex-grow p-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none uppercase text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="out1" placeholder="Starter Outfield 1" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none uppercase text-sm border-l-4 border-l-green-500">
+                        <input type="text" id="out2" placeholder="Starter Outfield 2" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none uppercase text-sm border-l-4 border-l-green-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="bench1" placeholder="Cadangan Outfield 1" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-gray-400 focus:outline-none uppercase text-sm border-l-4 border-l-gray-600">
+                        <input type="text" id="bench2" placeholder="Cadangan Outfield 2" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-gray-400 focus:outline-none uppercase text-sm border-l-4 border-l-gray-600">
+                    </div>
+                </div>
+                <button onclick="addSchool()" class="w-full bg-gold text-black font-black py-4 rounded-lg hover:bg-yellow-400 transition shadow-[0_0_15px_rgba(255,215,0,0.3)]">DAFTARKAN KONTINGEN</button>
+            </div>
+
+            <!-- List Cek-In -->
+            <div class="bg-gray-900 border border-gray-800 p-6 rounded-xl flex flex-col">
+                <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
+                    <h2 class="text-lg font-bold text-gray-300">2. Daftar Hadir</h2>
+                    <span id="schoolCount" class="text-sm font-bold bg-gray-800 px-3 py-1 rounded text-gold">0 / 10 Terdaftar</span>
+                </div>
+                <div id="schoolList" class="flex-grow overflow-y-auto max-h-80 space-y-3 mb-4 pr-2"></div>
+                <button onclick="generateTourneySchedule()" class="w-full bg-gray-800 text-gray-400 border border-gray-600 font-black py-4 rounded-lg transition" id="btnAcak">
+                    KUNCI & ACAK JADWAL (Butuh 10)
+                </button>
+            </div>
+        </div>
+
+        <!-- FASE PERTANDINGAN (LIVE MATCH) -->
+        <div id="playingPhase" class="hidden">
+            <div class="bg-gray-900 border border-yellow-900/40 p-6 rounded-xl text-center shadow-2xl relative overflow-hidden">
+                <!-- Indikator Blind Mode -->
+                <div id="blindStatusBadge" class="hidden absolute top-0 left-0 right-0 bg-red-900/80 text-white text-xs font-black py-1 tracking-widest border-b border-red-500 animate-pulse">
+                    ⚠️ FASE KEGELAPAN (BLIND LEADERBOARD) AKTIF ⚠️
+                </div>
+
+                <div class="mt-4 flex justify-between items-center border-b border-gray-800 pb-4 mb-6">
+                    <h2 class="text-2xl font-black text-gold uppercase tracking-widest text-left">Live Controller</h2>
+                    <div id="matchInfoBadge" class="text-blue-400 font-mono tracking-widest bg-blue-900/30 px-4 py-1 rounded-full border border-blue-800 text-sm font-bold shadow-inner">
+                        MEMUAT...
+                    </div>
+                </div>
+
+                <div id="activeMatchDisplay" class="py-10 text-gray-400">Memuat pertandingan...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://assaxxfdxtycdqkkkgpc.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzc2F4eGZkeHR5Y2Rxa2trZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjk4MDQsImV4cCI6MjA5MjYwNTgwNH0.5L3XfA3GOQqIzzNGOBZRTSINqGugDp1sj07BBYpsqEc';
+        const db = supabase.createClient(supabaseUrl, supabaseKey);
+
+        const swalDark = Swal.mixin({ background: '#121212', color: '#fff', confirmButtonColor: '#FFD700', customClass: { confirmButton: 'text-black font-bold px-6 py-2 rounded' } });
+
+        let currentRoom = null;
+        let totalMatches = 0;
+
+        function goBack() { window.location.href = 'index.html'; }
+
+        function copyTourneyLink() {
+            const codeText = document.getElementById('roomStatus').innerText.replace('KODE: ', '').trim();
+            const baseURL = window.location.href.split('admin-turnamen.html')[0]; 
+            navigator.clipboard.writeText(`${baseURL}turnamen.html?id=${codeText}`).then(() => {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Link disalin!', showConfirmButton: false, timer: 2000, background: '#1f2937', color: '#FFD700' });
+            });
+        }
+
+        async function initAdmin() {
+            const code = new URLSearchParams(window.location.search).get('id') || localStorage.getItem('garda_tourney_admin');
+            if (!code) return goBack();
+            
+            document.getElementById('roomStatus').innerText = `KODE: ${code}`;
+            const { data } = await db.from('garda_tourney_rooms').select('*').eq('room_code', code).single();
+            
+            if (data) {
+                currentRoom = data;
+                totalMatches = Math.floor((currentRoom.total_duration - 10) / 10);
+                if (currentRoom.status !== 'waiting') {
+                    document.getElementById('setupPhase').classList.add('hidden');
+                    document.getElementById('playingPhase').classList.remove('hidden');
+                    if(currentRoom.blind_mode) document.getElementById('blindStatusBadge').classList.remove('hidden');
+                    loadActiveMatch();
+                } else { fetchSchools(); }
+            }
+        }
+
+        // --- FASE SETUP ---
+        async function addSchool() {
+            const sName = document.getElementById('schoolName').value.trim();
+            const names = [
+                document.getElementById('gkName').value.trim(),
+                document.getElementById('out1').value.trim(), document.getElementById('out2').value.trim(),
+                document.getElementById('bench1').value.trim(), document.getElementById('bench2').value.trim()
+            ];
+
+            if (!sName || names.includes('')) return swalDark.fire('Data Belum Lengkap', 'Nama sekolah dan kelima slot pemain wajib diisi!', 'warning');
+            swalDark.fire({ title: 'Menyimpan Kontingen...', didOpen: () => Swal.showLoading() });
+
+            // Insert School
+            const { data: sch } = await db.from('garda_tourney_schools').insert([{ room_id: currentRoom.id, name: sName }]).select().single();
+            
+            // Insert 5 Players
+            const players = [
+                { school_id: sch.id, name: names[0], position: 'gk', status_squad: 'starter' },
+                { school_id: sch.id, name: names[1], position: 'outfield', status_squad: 'starter' },
+                { school_id: sch.id, name: names[2], position: 'outfield', status_squad: 'starter' },
+                { school_id: sch.id, name: names[3], position: 'outfield', status_squad: 'cadangan' },
+                { school_id: sch.id, name: names[4], position: 'outfield', status_squad: 'cadangan' }
+            ];
+            await db.from('garda_tourney_players').insert(players);
+
+            ['schoolName', 'gkName', 'out1', 'out2', 'bench1', 'bench2'].forEach(id => document.getElementById(id).value = '');
+            Swal.close(); fetchSchools();
+        }
+
+        async function fetchSchools() {
+            const { data: schools } = await db.from('garda_tourney_schools').select('id, name, garda_tourney_players(name, position, status_squad)').eq('room_id', currentRoom.id);
+            const list = document.getElementById('schoolList'); list.innerHTML = '';
+            document.getElementById('schoolCount').innerText = `${schools.length} / 10 Terdaftar`;
+
+            const btnAcak = document.getElementById('btnAcak');
+            if (schools.length >= 10) {
+                btnAcak.className = "w-full bg-gold text-black font-black py-4 rounded-lg hover:bg-yellow-400 transition shadow-[0_0_15px_rgba(255,215,0,0.4)] shadow-lg";
+                btnAcak.innerText = "MULAI ACAK JADWAL TURNAMEN!";
+            }
+
+            schools.forEach(s => {
+                let pList = s.garda_tourney_players.map(p => {
+                    let color = p.position === 'gk' ? 'text-purple-400' : (p.status_squad === 'starter' ? 'text-green-400' : 'text-gray-500');
+                    return `<span class="text-[10px] ${color} mr-2">${p.name}</span>`;
+                }).join('');
+                list.innerHTML += `
+                    <div class="bg-black border border-gray-700 p-3 rounded-lg">
+                        <div class="font-bold text-gold uppercase tracking-wider mb-1 border-b border-gray-800 pb-1">${s.name}</div>
+                        <div class="truncate">${pList}</div>
+                    </div>`;
+            });
+        }
+
+        // --- RNG ENGINE KAKU (MATCHMAKING) ---
+        async function generateTourneySchedule() {
+            const { data: schools } = await db.from('garda_tourney_schools').select('id, garda_tourney_players(id, position, status_squad)').eq('room_id', currentRoom.id);
+            if (schools.length < 10) return swalDark.fire('Belum Lengkap!', 'Turnamen membutuhkan tepat 10 Sekolah terdaftar.', 'error');
+
+            swalDark.fire({ title: 'Membangun Arsitektur Turnamen...', html: 'Mengacak jadwal & menyeimbangkan rotasi Kiper...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+            // Simulasi Play Count untuk RNG
+            let schoolStats = schools.map(s => ({ 
+                id: s.id, play_count: 0, gk_play_count: 0, 
+                gk: s.garda_tourney_players.find(p => p.position === 'gk'),
+                starters: s.garda_tourney_players.filter(p => p.position === 'outfield' && p.status_squad === 'starter')
+            }));
+
+            let matchesToInsert = []; let rosterToInsert = [];
+
+            for (let i = 1; i <= totalMatches; i++) {
+                // Fisher-Yates but prioritizing lowest play count to ensure fairness
+                schoolStats.sort((a, b) => a.play_count - b.play_count || Math.random() - 0.5);
+                let selected4 = schoolStats.slice(0, 4);
+                
+                // Sort the 4 to decide who brings GK (Trio) vs who rests GK (Duo)
+                selected4.sort((a, b) => a.gk_play_count - b.gk_play_count || Math.random() - 0.5);
+                let trios = selected4.slice(0, 2); let duos = selected4.slice(2, 4);
+
+                // Update simulation stats
+                trios.forEach(s => { s.play_count++; s.gk_play_count++; });
+                duos.forEach(s => { s.play_count++; });
+
+                const matchId = crypto.randomUUID();
+                matchesToInsert.push({ id: matchId, room_id: currentRoom.id, match_number: i, status: i === 1 ? 'prep' : 'pending' });
+
+                // Construct Roster Team A: Trio[0] + Duo[0]
+                rosterToInsert.push({ match_id: matchId, player_id: trios[0].gk.id, team_side: 'A' });
+                trios[0].starters.forEach(p => rosterToInsert.push({ match_id: matchId, player_id: p.id, team_side: 'A' }));
+                duos[0].starters.forEach(p => rosterToInsert.push({ match_id: matchId, player_id: p.id, team_side: 'A' }));
+
+                // Construct Roster Team B: Trio[1] + Duo[1]
+                rosterToInsert.push({ match_id: matchId, player_id: trios[1].gk.id, team_side: 'B' });
+                trios[1].starters.forEach(p => rosterToInsert.push({ match_id: matchId, player_id: p.id, team_side: 'B' }));
+                duos[1].starters.forEach(p => rosterToInsert.push({ match_id: matchId, player_id: p.id, team_side: 'B' }));
+            }
+
+            await db.from('garda_tourney_matches').insert(matchesToInsert);
+            await db.from('garda_tourney_match_roster').insert(rosterToInsert);
+            await db.from('garda_tourney_rooms').update({ status: 'playing' }).eq('id', currentRoom.id);
+            window.location.reload();
+        }
+
+        // --- LIVE MATCH LOGIC ---
+        async function loadActiveMatch() {
+            // Find prep or active match
+            const { data: match } = await db.from('garda_tourney_matches').select('*').eq('room_id', currentRoom.id)
+                .in('status', ['prep', 'active']).order('match_number', { ascending: true }).limit(1).single();
+
+            const display = document.getElementById('activeMatchDisplay');
+
+            if (!match) {
+                display.innerHTML = `<h3 class="text-3xl font-black text-gold animate-pulse my-10">TURNAMEN SELESAI!</h3>`;
+                return;
+            }
+
+            document.getElementById('matchInfoBadge').innerText = match.match_type === 'grand_final' ? '🏆 GRAND FINAL 5v5' : `GAME ${match.match_number} / ${totalMatches}`;
+
+            const { data: rosters } = await db.from('garda_tourney_match_roster').select('player_id, team_side, garda_tourney_players(id, name, position, garda_tourney_schools(name))').eq('match_id', match.id);
+
+            const renderTeamUI = (side, scoreId) => {
+                let r = rosters.filter(x => x.team_side === side);
+                // Group by School for cleaner display
+                let schoolGroups = {};
+                r.forEach(p => {
+                    let sName = p.garda_tourney_players.garda_tourney_schools.name;
+                    if(!schoolGroups[sName]) schoolGroups[sName] = [];
+                    schoolGroups[sName].push(p.garda_tourney_players);
+                });
+
+                let html = '';
+                for (const [schName, players] of Object.entries(schoolGroups)) {
+                    html += `<div class="mb-2"><div class="text-[10px] text-gray-500 uppercase font-black border-b border-gray-700 pb-0.5 mb-1">${schName}</div>`;
+                    players.forEach(p => {
+                        let badge = p.position === 'gk' ? '<span class="text-purple-500 ml-1 text-[9px]">(GK)</span>' : '';
+                        html += `<div class="text-xs font-bold text-gray-200 uppercase truncate">${p.name}${badge}</div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                return `
+                <div class="flex flex-col items-center w-5/12 md:w-1/3">
+                    <span class="text-xl md:text-2xl font-black mb-3 text-white tracking-widest border-b-2 border-gray-700 pb-1 w-full text-center">TIM ${side}</span>
+                    ${match.status === 'active' 
+                        ? `<input type="number" id="${scoreId}" value="0" min="0" class="w-20 h-24 md:w-32 md:h-32 text-center text-5xl md:text-6xl font-black bg-black border-4 border-gray-700 rounded-2xl focus:border-gold focus:outline-none focus:ring-4 focus:ring-yellow-900 transition text-gold shadow-inner mb-4">`
+                        : `<div class="w-20 h-24 md:w-32 md:h-32 flex items-center justify-center text-4xl font-black bg-black border-4 border-dashed border-gray-700 rounded-2xl text-gray-700 mb-4">?</div>`
+                    }
+                    <div class="bg-black w-full rounded-lg p-3 text-center border border-gray-800 shadow-inner min-h-[120px]">${html}</div>
+                </div>`;
+            };
+
+            if (match.status === 'prep') {
+                display.innerHTML = `
+                    <div class="text-sm text-gray-400 font-bold mb-6">FASE LOCKER ROOM (PERSIAPAN SUBSTITUSI)</div>
+                    <div class="flex items-start justify-center gap-4 md:gap-12 mb-8">${renderTeamUI('A')} <div class="text-xl font-black text-gray-700 mt-16">VS</div> ${renderTeamUI('B')}</div>
+                    <div class="space-y-3 w-full md:w-2/3 mx-auto">
+                        <button onclick="openLockerRoomModal('${match.id}')" class="w-full bg-gray-800 hover:bg-gray-700 text-gold font-black py-4 rounded-xl border border-yellow-900 transition flex justify-center items-center gap-2"><span>🔄</span> ATUR FORMASI (SWAP CADANGAN)</button>
+                        <button onclick="kickOff('${match.id}')" class="w-full bg-gradient-to-r from-green-600 to-green-500 text-black font-black py-5 rounded-xl transition text-xl shadow-[0_0_20px_rgba(57,255,20,0.3)]">⚽ KICK OFF PERTANDINGAN!</button>
+                    </div>`;
+            } else {
+                display.innerHTML = `
+                    <div class="text-sm text-red-400 font-black animate-pulse mb-6 tracking-widest">PERTANDINGAN BERJALAN</div>
+                    <div class="flex items-start justify-center gap-4 md:gap-12 mb-8">${renderTeamUI('A', 'scoreA')} <div class="text-xl font-black text-gray-700 mt-16">VS</div> ${renderTeamUI('B', 'scoreB')}</div>
+                    <button onclick="submitScore('${match.id}', ${match.match_number}, '${match.match_type}')" class="w-full md:w-2/3 mx-auto block bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl transition text-xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">TIUP PELUIT & HITUNG POIN</button>`;
+            }
+        }
+
+        // --- FASE LOCKER ROOM (SWAP MODAL) ---
+        async function openLockerRoomModal(matchId) {
+            swalDark.fire({ title: 'Membuka Locker Room...', didOpen: () => Swal.showLoading() });
+            
+            // Get currently playing outfields
+            const { data: roster } = await db.from('garda_tourney_match_roster').select('player_id, garda_tourney_players(school_id, name, position)').eq('match_id', matchId);
+            const playingOutfields = roster.filter(r => r.garda_tourney_players.position === 'outfield');
+            const schoolIds = [...new Set(playingOutfields.map(r => r.garda_tourney_players.school_id))];
+
+            // Get bench outfields for these schools
+            const { data: allPlayers } = await db.from('garda_tourney_players').select('id, name, school_id, position').in('school_id', schoolIds).eq('position', 'outfield');
+            const playingIds = playingOutfields.map(r => r.player_id);
+            const benched = allPlayers.filter(p => !playingIds.includes(p.id));
+
+            let htmlOptions = '';
+            // Group by school for clarity
+            for(let sId of schoolIds) {
+                const {data: sch} = await db.from('garda_tourney_schools').select('name').eq('id', sId).single();
+                let sPlays = playingOutfields.filter(p => p.garda_tourney_players.school_id === sId);
+                let sBench = benched.filter(p => p.school_id === sId);
+                
+                if(sBench.length > 0) {
+                    htmlOptions += `<div class="mb-4 bg-black p-3 rounded border border-gray-700">
+                        <div class="text-gold text-xs font-bold uppercase mb-2 text-left">${sch.name}</div>
+                        <select id="out_${sId}" class="w-full p-2 bg-gray-900 text-red-400 text-xs mb-2 border border-gray-800 rounded">
+                            <option value="">-- Pilih Pemain Ditarik Keluar --</option>
+                            ${sPlays.map(p => `<option value="${p.player_id}">${p.garda_tourney_players.name}</option>`).join('')}
+                        </select>
+                        <select id="in_${sId}" class="w-full p-2 bg-gray-900 text-green-400 text-xs border border-gray-800 rounded">
+                            <option value="">-- Masukkan Cadangan --</option>
+                            ${sBench.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                        </select>
+                    </div>`;
+                }
+            }
+
+            if(htmlOptions === '') { return swalDark.fire('Info', 'Tidak ada pemain cadangan yang tersedia untuk sekolah yang sedang bertanding.', 'info'); }
+
+            Swal.fire({
+                title: 'Strategi Rotasi', background: '#1f2937', color: '#fff', html: `<div class="max-h-60 overflow-y-auto">${htmlOptions}</div>`,
+                showCancelButton: true, confirmButtonText: 'Terapkan Rotasi', confirmButtonColor: '#FFD700',
+                customClass: { confirmButton: 'text-black font-bold px-4 py-2 rounded' },
+                preConfirm: () => {
+                    let swaps = [];
+                    schoolIds.forEach(sId => {
+                        let elOut = document.getElementById(`out_${sId}`); let elIn = document.getElementById(`in_${sId}`);
+                        if(elOut && elIn && elOut.value && elIn.value) swaps.push({ oldId: elOut.value, newId: elIn.value });
+                    });
+                    return swaps;
+                }
+            }).then(async (result) => {
+                if (result.isConfirmed && result.value.length > 0) {
+                    swalDark.fire({ title: 'Memproses Substitusi...', didOpen: () => Swal.showLoading() });
+                    for(let swap of result.value) {
+                        await db.from('garda_tourney_match_roster').update({ player_id: swap.newId }).eq('match_id', matchId).eq('player_id', swap.oldId);
+                    }
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Rotasi Selesai', showConfirmButton: false, timer: 1500, background: '#1f2937', color: '#39ff14' });
+                    loadActiveMatch();
+                }
+            });
+        }
+
+        async function kickOff(matchId) { await db.from('garda_tourney_matches').update({ status: 'active' }).eq('id', matchId); loadActiveMatch(); }
+
+        // --- KALKULATOR POIN PARANOIA & PENYELESAIAN GAME ---
+        async function submitScore(matchId, matchNumber, matchType) {
+            const scoreA = parseInt(document.getElementById('scoreA').value);
+            const scoreB = parseInt(document.getElementById('scoreB').value);
+
+            swalDark.fire({
+                title: 'Validasi Hasil Akhir',
+                html: `Skor Akhir:<br><b class="text-4xl text-gold mt-2 block">A: ${scoreA} - B: ${scoreB}</b><br><span class="text-xs text-gray-400">Poin Hybrid & Penalti akan diterapkan seketika.</span>`,
+                icon: 'warning', showCancelButton: true, confirmButtonText: 'Kunci Hasil', cancelButtonText: 'Revisi'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    swalDark.fire({ title: 'Mengkalkulasi Agregat Sekolah...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+
+                    if (matchType !== 'grand_final') {
+                        // 1. Ambil Roster & Data Lama
+                        const { data: rosters } = await db.from('garda_tourney_match_roster')
+                            .select('player_id, team_side, garda_tourney_players(school_id, position, poin_individu, jumlah_main)')
+                            .eq('match_id', matchId);
+
+                        let pUpdates = [];
+                        let schoolPointDeltas = {};
+
+                        // 2. Hitung Poin Hybrid (Logika Ekstrem)
+                        for (let r of rosters) {
+                            let p = r.garda_tourney_players;
+                            let myGoal = r.team_side === 'A' ? scoreA : scoreB;
+                            let oppGoal = r.team_side === 'A' ? scoreB : scoreA;
+                            
+                            let poinDapat = 0;
+                            if (p.position === 'outfield') { poinDapat = (myGoal * 1) + (oppGoal * -2); } 
+                            else if (p.position === 'gk') { poinDapat = 2 + (oppGoal * -2); }
+
+                            pUpdates.push({ id: r.player_id, poin_individu: p.poin_individu + poinDapat, jumlah_main: p.jumlah_main + 1 });
+                            schoolPointDeltas[p.school_id] = (schoolPointDeltas[p.school_id] || 0) + poinDapat;
+                        }
+
+                        // 3. Update Database Serentak
+                        for (let u of pUpdates) { await db.from('garda_tourney_players').update({ poin_individu: u.poin_individu, jumlah_main: u.jumlah_main }).eq('id', u.id); }
+                        
+                        // Tarik & Update Poin Sekolah
+                        for (const [schId, delta] of Object.entries(schoolPointDeltas)) {
+                            let { data: sch } = await db.from('garda_tourney_schools').select('total_points').eq('id', schId).single();
+                            await db.from('garda_tourney_schools').update({ total_points: sch.total_points + delta }).eq('id', schId);
+                        }
+
+                        // 4. Cek Auto-Blind Mode
+                        if (matchNumber >= Math.floor(totalMatches / 2) && !currentRoom.blind_mode) {
+                            await db.from('garda_tourney_rooms').update({ blind_mode: true }).eq('id', currentRoom.id);
+                            currentRoom.blind_mode = true;
+                            Swal.fire({ icon: 'error', title: 'FASE KEGELAPAN AKTIF!', text: 'Sistem telah menyensor Papan Klasemen untuk mencegah sabotase.', background: '#121212', color: '#fff' });
+                        }
+                    }
+
+                    // Kunci Match
+                    await db.from('garda_tourney_matches').update({ score_a: scoreA, score_b: scoreB, status: 'completed' }).eq('id', matchId);
+
+                    // 5. Cek Lanjut Game atau Eksekusi Grand Final
+                    const { data: nextGrp } = await db.from('garda_tourney_matches').select('id').eq('room_id', currentRoom.id).eq('status', 'pending').eq('match_type', 'group').order('match_number', { ascending: true }).limit(1);
+                    
+                    if (nextGrp && nextGrp.length > 0) {
+                        await db.from('garda_tourney_matches').update({ status: 'prep' }).eq('id', nextGrp[0].id);
+                    } else if (matchType === 'group' && currentRoom.tourney_type === 'grand_final') {
+                        // TIE-BREAKER LOGIC: MENCARI ACE CARRIER
+                        await triggerGrandFinal();
+                        return; // Stop here, triggerGrandFinal reloads.
+                    } else {
+                        await db.from('garda_tourney_rooms').update({ status: 'finished' }).eq('id', currentRoom.id);
+                    }
+
+                    Swal.close(); loadActiveMatch(); 
+                }
+            });
+        }
+
+        async function triggerGrandFinal() {
+            swalDark.fire({ title: 'Menghitung Tie-Breaker...', html: 'Mencari Top 2 Sekolah & Menginisiasi Grand Final...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            
+            // Fetch schools and all players for tie breaker "Ace Carrier" calculation
+            const { data: schools } = await db.from('garda_tourney_schools').select('id, name, total_points, garda_tourney_players(id, poin_individu)').eq('room_id', currentRoom.id);
+            
+            schools.sort((a, b) => {
+                if (b.total_points !== a.total_points) return b.total_points - a.total_points;
+                // Tie Breaker: Highest Individual Point in squad
+                const maxA = Math.max(...a.garda_tourney_players.map(p => p.poin_individu));
+                const maxB = Math.max(...b.garda_tourney_players.map(p => p.poin_individu));
+                return maxB - maxA;
+            });
+
+            const top2 = schools.slice(0, 2);
+            
+            // Create GF Match
+            const gfId = crypto.randomUUID();
+            await db.from('garda_tourney_matches').insert([{ id: gfId, room_id: currentRoom.id, match_number: 99, match_type: 'grand_final', status: 'prep' }]);
+            
+            // Insert all 5 players (Start+Bench) of Top 2 into Roster. They will swap later in Locker Room.
+            let gfRoster = [];
+            top2[0].garda_tourney_players.forEach(p => gfRoster.push({ match_id: gfId, player_id: p.id, team_side: 'A' }));
+            top2[1].garda_tourney_players.forEach(p => gfRoster.push({ match_id: gfId, player_id: p.id, team_side: 'B' }));
+            
+            await db.from('garda_tourney_match_roster').insert(gfRoster);
+            // Matikan blind mode agar final terlihat
+            await db.from('garda_tourney_rooms').update({ blind_mode: false }).eq('id', currentRoom.id);
+            
+            window.location.reload();
+        }
+
+        initAdmin();
+    </script>
+</body>
+</html>
