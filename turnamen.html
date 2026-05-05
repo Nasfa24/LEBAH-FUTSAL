@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Score Turnamen - Garda Futsal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { neon: '#39ff14', dark: '#121212', gold: '#FFD700', goldDark: '#B8860B' } } } }
+    </script>
+    <style>
+        .glitch-text { animation: glitch 1.5s linear infinite; }
+        @keyframes glitch {
+            2%, 64% { transform: translate(2px,0) skew(0deg); }
+            4%, 60% { transform: translate(-2px,0) skew(0deg); }
+            62% { transform: translate(0,0) skew(5deg); }
+        }
+        .blind-overlay { background: repeating-linear-gradient(45deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 10px, rgba(20,20,20,0.2) 10px, rgba(20,20,20,0.2) 20px); }
+    </style>
+</head>
+<body class="bg-dark text-white min-h-screen p-4 font-sans relative">
+
+    <div class="max-w-lg mx-auto">
+        <!-- HEADER -->
+        <div class="flex justify-between items-start mb-6">
+            <button onclick="leaveRoom()" class="text-gray-400 hover:text-white bg-gray-800 px-3 py-1 rounded text-sm transition shadow-md">&larr; Beranda</button>
+            <div class="text-right">
+                <h1 class="text-2xl font-black italic tracking-wider text-white">GARDA<span class="text-gold">TURNAMEN</span></h1>
+                <div id="roomStatus" class="inline-block bg-gradient-to-r from-yellow-700 to-yellow-600 px-3 py-1 mt-1 rounded text-xs text-black font-black border border-yellow-800 tracking-widest shadow-lg">
+                    MEMUAT...
+                </div>
+            </div>
+        </div>
+
+        <!-- BLIND MODE WARNING BANNER -->
+        <div id="blindWarning" class="hidden mb-4 bg-red-900 border border-red-500 rounded-lg p-3 text-center shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse blind-overlay">
+            <span class="text-red-200 font-black tracking-widest text-sm glitch-text">⚠️ FASE KEGELAPAN AKTIF ⚠️</span>
+            <p class="text-[10px] text-red-300 mt-1 uppercase">Peringkat & Poin Disensor. Berjuanglah di Zonamu!</p>
+        </div>
+
+        <!-- TABS -->
+        <div class="flex mb-4 border-b border-yellow-900 bg-gray-900 rounded-t-lg overflow-hidden shadow-lg">
+            <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="flex-1 py-3 font-black text-black bg-gold transition border-b-2 border-gold shadow-inner">🏆 KLASEMEN</button>
+            <button onclick="switchTab('jadwal')" id="tab-jadwal" class="flex-1 py-3 font-bold text-gray-400 bg-gray-900 hover:bg-gray-800 transition border-b-2 border-transparent">📅 JADWAL</button>
+        </div>
+
+        <!-- CONTENT: LEADERBOARD -->
+        <div id="content-leaderboard" class="space-y-6">
+            
+            <!-- Klasemen Normal -->
+            <div id="normalLeaderboard" class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden shadow-2xl">
+                <div class="bg-black p-3 text-center text-sm font-black text-gold uppercase tracking-widest border-b border-yellow-900 shadow-inner">
+                    AGREGAT SEKOLAH
+                </div>
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-900 text-gray-500 text-xs border-b border-gray-800">
+                        <tr>
+                            <th class="p-3 w-12 text-center">#</th>
+                            <th class="p-3">Almamater</th>
+                            <th class="p-3 text-center text-gold">Agregat</th>
+                        </tr>
+                    </thead>
+                    <tbody id="normalList" class="divide-y divide-gray-800">
+                        <!-- Diisi via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Klasemen Blind Mode (Sistem Zona) -->
+            <div id="blindLeaderboard" class="hidden space-y-4">
+                
+                <!-- Zona Juara (Top 4) -->
+                <div class="border-2 border-gold rounded-lg bg-yellow-900/10 overflow-hidden shadow-[0_0_20px_rgba(255,215,0,0.15)] relative">
+                    <div class="bg-gradient-to-r from-yellow-700 to-yellow-600 p-2 text-center text-black font-black uppercase tracking-widest text-sm">ZONA JUARA (TOP 4)</div>
+                    <div id="zonaJuara" class="divide-y divide-yellow-900/30"></div>
+                </div>
+
+                <!-- Zona Tengah (Mid 3) -->
+                <div class="border border-blue-800 rounded-lg bg-blue-900/10 overflow-hidden relative">
+                    <div class="bg-blue-900 p-2 text-center text-blue-200 font-bold uppercase tracking-widest text-xs">ZONA TENGAH (AMAN)</div>
+                    <div id="zonaTengah" class="divide-y divide-blue-900/30"></div>
+                </div>
+
+                <!-- Zona Gugur (Bottom 3) -->
+                <div class="border border-red-900 rounded-lg bg-red-900/10 overflow-hidden relative blind-overlay">
+                    <div class="bg-red-900 p-2 text-center text-red-200 font-bold uppercase tracking-widest text-xs">ZONA GUGUR (TERANCAM)</div>
+                    <div id="zonaGugur" class="divide-y divide-red-900/30"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- CONTENT: JADWAL -->
+        <div id="content-jadwal" class="hidden space-y-4 pb-10">
+            <div id="jadwalList">
+                <div class="text-center text-gray-500 py-10">Memuat Jadwal Turnamen...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://assaxxfdxtycdqkkkgpc.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzc2F4eGZkeHR5Y2Rxa2trZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjk4MDQsImV4cCI6MjA5MjYwNTgwNH0.5L3XfA3GOQqIzzNGOBZRTSINqGugDp1sj07BBYpsqEc';
+        const db = supabase.createClient(supabaseUrl, supabaseKey);
+
+        const swalGold = Swal.mixin({ background: '#121212', color: '#fff', confirmButtonColor: '#FFD700', customClass: { confirmButton: 'text-black font-bold px-6 py-2 rounded' } });
+
+        let currentRoomId = null;
+        let isBlindModeActive = false;
+
+        function leaveRoom() { window.location.href = 'index.html'; }
+
+        function switchTab(tab) {
+            document.getElementById('content-leaderboard').classList.add('hidden');
+            document.getElementById('content-jadwal').classList.add('hidden');
+            
+            document.getElementById('tab-leaderboard').className = 'flex-1 py-3 font-bold text-gray-400 bg-gray-900 hover:bg-gray-800 transition border-b-2 border-transparent';
+            document.getElementById('tab-jadwal').className = 'flex-1 py-3 font-bold text-gray-400 bg-gray-900 hover:bg-gray-800 transition border-b-2 border-transparent';
+
+            document.getElementById(`content-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).className = 'flex-1 py-3 font-black text-black bg-gold transition border-b-2 border-gold shadow-inner';
+        }
+
+        async function initRoom() {
+            const code = new URLSearchParams(window.location.search).get('id') || localStorage.getItem('garda_tourney_code');
+            if (!code) return leaveRoom();
+
+            document.getElementById('roomStatus').innerText = `ID: ${code}`;
+
+            const { data: roomData } = await db.from('garda_tourney_rooms').select('id, status, blind_mode').eq('room_code', code).single();
+            if (roomData) {
+                currentRoomId = roomData.id;
+                isBlindModeActive = roomData.blind_mode;
+                
+                if(isBlindModeActive) {
+                    document.getElementById('blindWarning').classList.remove('hidden');
+                    document.getElementById('normalLeaderboard').classList.add('hidden');
+                    document.getElementById('blindLeaderboard').classList.remove('hidden');
+                }
+
+                fetchLeaderboard(); fetchJadwal();
+                
+                // Realtime Listeners
+                db.channel('public:room_updates')
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'garda_tourney_rooms', filter: `id=eq.${currentRoomId}` }, payload => {
+                        if(payload.new.blind_mode !== isBlindModeActive) { window.location.reload(); }
+                    })
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'garda_tourney_schools', filter: `room_id=eq.${currentRoomId}` }, () => fetchLeaderboard())
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'garda_tourney_matches', filter: `room_id=eq.${currentRoomId}` }, () => fetchJadwal())
+                    .subscribe();
+            }
+        }
+
+        async function fetchLeaderboard() {
+            // Tarik data sekolah dan poin individu pemain (untuk Tie-Breaker "Ace Carrier")
+            const { data: schools } = await db.from('garda_tourney_schools')
+                .select('id, name, total_points, garda_tourney_players(poin_individu)')
+                .eq('room_id', currentRoomId);
+            
+            if (!schools || schools.length === 0) return;
+
+            // Hitung Max Poin Individu untuk Tie-Breaker
+            schools.forEach(s => { s.max_poin = Math.max(...s.garda_tourney_players.map(p => p.poin_individu), 0); });
+
+            // Sortir Klasemen Mutlak (Poin Agregat -> Tie-Breaker Bintang)
+            schools.sort((a, b) => b.total_points - a.total_points || b.max_poin - a.max_poin);
+
+            if (isBlindModeActive) {
+                // TAMPILAN BLIND MODE (SISTEM ZONA 4-3-3)
+                
+                // Pisahkan berdasar Zona, lalu ACAK ALFABET A-Z agar ranking aslinya tersembunyi
+                let top4 = schools.slice(0, 4).sort((a,b) => a.name.localeCompare(b.name));
+                let mid3 = schools.slice(4, 7).sort((a,b) => a.name.localeCompare(b.name));
+                let bot3 = schools.slice(7, 10).sort((a,b) => a.name.localeCompare(b.name));
+
+                const renderBlindRow = (sch, colorClass) => `
+                    <div class="flex justify-between items-center p-4 bg-black/50 hover:bg-black transition">
+                        <span class="font-black uppercase tracking-widest ${colorClass}">${sch.name}</span>
+                        <span class="font-mono text-gray-500 bg-gray-900 px-3 py-1 rounded shadow-inner glitch-text">??? PT</span>
+                    </div>`;
+
+                document.getElementById('zonaJuara').innerHTML = top4.map(s => renderBlindRow(s, 'text-gold')).join('');
+                document.getElementById('zonaTengah').innerHTML = mid3.map(s => renderBlindRow(s, 'text-blue-300')).join('');
+                document.getElementById('zonaGugur').innerHTML = bot3.map(s => renderBlindRow(s, 'text-red-400')).join('');
+
+            } else {
+                // TAMPILAN NORMAL MURNI
+                let html = ''; let rank = 1;
+                schools.forEach(s => {
+                    let rankStyle = ''; let rowGlow = '';
+                    if(rank === 1) { rankStyle = 'text-gold text-2xl drop-shadow-md'; rowGlow = 'bg-yellow-900/10 border-l-4 border-gold'; }
+                    else if (rank === 2) { rankStyle = 'text-gray-300 text-xl'; rowGlow = 'border-l-4 border-gray-400'; }
+                    else if (rank === 3) { rankStyle = 'text-orange-400 text-lg'; rowGlow = 'border-l-4 border-orange-500'; }
+                    else { rankStyle = 'text-gray-600'; rowGlow = 'border-l-4 border-transparent'; }
+
+                    html += `
+                        <tr class="hover:bg-gray-800 transition ${rowGlow}">
+                            <td class="p-3 text-center ${rankStyle} font-black">${rank++}</td>
+                            <td class="p-3 font-bold uppercase tracking-wider text-gray-200">${s.name}</td>
+                            <td class="p-3 text-center font-black text-gold text-xl bg-yellow-900/20">${s.total_points}</td>
+                        </tr>`;
+                });
+                document.getElementById('normalList').innerHTML = html;
+            }
+        }
+
+        async function fetchJadwal() {
+            const { data: matches } = await db.from('garda_tourney_matches')
+                .select('*, garda_tourney_match_roster(team_side, garda_tourney_players(name, position, garda_tourney_schools(name)))')
+                .eq('room_id', currentRoomId)
+                .order('match_number', { ascending: true });
+
+            if (!matches || matches.length === 0) return;
+
+            let html = '';
+            matches.forEach(m => {
+                let isGF = m.match_type === 'grand_final';
+                let matchLabel = isGF ? '🏆 GRAND FINAL' : `GAME ${m.match_number}`;
+                let statusBadge = ''; let scoreText = `<span class="text-2xl font-black text-gray-700 italic">VS</span>`;
+                let borderGlow = isGF ? 'border-gold shadow-[0_0_15px_rgba(255,215,0,0.3)]' : 'border-gray-800';
+
+                if (m.status === 'completed') {
+                    statusBadge = `<span class="bg-gray-800 text-gray-400 text-xs px-2 py-1 rounded font-bold">SELESAI</span>`;
+                    scoreText = `<span class="text-2xl font-black text-white tracking-widest">${m.score_a} - ${m.score_b}</span>`;
+                } else if (m.status === 'active') {
+                    statusBadge = `<span class="bg-red-600 text-white font-black text-xs px-2 py-1 rounded animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]">BERMAIN</span>`;
+                    borderGlow = 'border-red-600 shadow-[0_0_20px_rgba(220,38,38,0.3)]';
+                } else if (m.status === 'prep') {
+                    statusBadge = `<span class="bg-blue-600 text-white font-bold text-xs px-2 py-1 rounded animate-pulse">PERSIAPAN LOCKER ROOM</span>`;
+                    borderGlow = 'border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.2)]';
+                } else {
+                    statusBadge = `<span class="bg-gray-900 border border-gray-700 text-gray-500 text-xs px-2 py-1 rounded font-bold">MENUNGGU</span>`;
+                }
+
+                // Render Roster Berbasis Sekolah
+                const renderTeamList = (side) => {
+                    if(!m.garda_tourney_match_roster) return '';
+                    let r = m.garda_tourney_match_roster.filter(x => x.team_side === side);
+                    let schoolGroups = {};
+                    r.forEach(p => {
+                        let sName = p.garda_tourney_players.garda_tourney_schools.name;
+                        if(!schoolGroups[sName]) schoolGroups[sName] = [];
+                        schoolGroups[sName].push(p.garda_tourney_players);
+                    });
+
+                    let tHtml = '';
+                    for (const [schName, players] of Object.entries(schoolGroups)) {
+                        tHtml += `<div class="mb-1.5"><div class="text-[9px] text-gray-500 uppercase font-black">${schName}</div>`;
+                        players.forEach(p => {
+                            let isGK = p.position === 'gk';
+                            tHtml += `<div class="text-[10px] md:text-xs uppercase ${isGK ? 'text-purple-400' : 'text-gray-300'} font-bold truncate">${p.name} ${isGK?'(GK)':''}</div>`;
+                        });
+                        tHtml += `</div>`;
+                    }
+                    return tHtml;
+                };
+
+                html += `
+                <div class="bg-gray-900 border ${borderGlow} rounded-lg p-4 mb-4 relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
+                        <span class="${isGF ? 'text-gold' : 'text-blue-400'} font-black text-sm tracking-widest">${matchLabel}</span>
+                        ${statusBadge}
+                    </div>
+                    <div class="flex justify-between items-start text-center">
+                        <div class="w-5/12 bg-black rounded p-2 border border-gray-800">
+                            <div class="font-black text-xs text-white mb-2 border-b border-gray-700 pb-1">TIM A</div>
+                            ${renderTeamList('A')}
+                        </div>
+                        <div class="w-2/12 pt-4 flex justify-center items-center">${scoreText}</div>
+                        <div class="w-5/12 bg-black rounded p-2 border border-gray-800">
+                            <div class="font-black text-xs text-white mb-2 border-b border-gray-700 pb-1">TIM B</div>
+                            ${renderTeamList('B')}
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            document.getElementById('jadwalList').innerHTML = html;
+        }
+
+        initRoom();
+    </script>
+</body>
+</html>
